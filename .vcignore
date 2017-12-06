@@ -1,0 +1,4 @@
+::Do not remove these two lines 
+::Unless you want to add the version control files to your repository
+ipfsStorage.sh
+vc.sh
