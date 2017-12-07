@@ -4,7 +4,7 @@ function initColours() {
 	# Example of Use:
 	#	RED='\033[0;31m'
 	#	NC='\033[0m' # No Color
-	#	echo -e "I ${RED}love${NC} different colours!"
+	#	printf "I ${RED}love${NC} different colours!"
 
 	NC='\033[0m'
 
@@ -39,7 +39,7 @@ function createRepo() {
 	Must include "/" at the start of a folder
 	'
 	RESULT=$(ipfs files mkdir "/$WORKREPO")
-	ipfs files cp "/ipfs/"`ipfs add -q -r $REPO | tail -n1` "/${WORKREPO}/${INITIAL}"
+	ipfs files cp "/ipfs/"`ipfs add -q -r $REPO | tail -n1` "/$WORKREPO/${INITIAL}"
 	tracker
 }
 
@@ -76,22 +76,22 @@ function getSize() {
 
 
 function help() {
-	echo -e "${LIGHTPURPLE}INFORMATION${NC}"
-	echo -e "  To add, commit or push any files, the working directory must be the repository name"
-	echo -e "\n${LIGHTPURPLE}USAGE${NC}"
-	echo -e "  ./ipfsStorage.sh [[-options] <path>]"
-	echo -e "\n${LIGHTPURPLE}ARGUMENTS${NC}"
-	echo -e "  -r, --repository <path> : Create a new repository"
-	echo -e "  -f, --writefile <path> : Write data to a file"
-	echo -e "  -remove, --remove <path> : Removes a file or directory"
-	echo -e "\n"
+	printf "${LIGHTPURPLE}INFORMATION${NC}"
+	printf "  To add, commit or push any files, the working directory must be the repository name"
+	printf "\n${LIGHTPURPLE}USAGE${NC}"
+	printf "  ./ipfsStorage.sh [[-options] <path>]"
+	printf "\n${LIGHTPURPLE}ARGUMENTS${NC}"
+	printf "  -r, --repository <path> : Create a new repository"
+	printf "  -f, --writefile <path> : Write data to a file"
+	printf "  -remove, --remove <path> : Removes a file or directory"
+	printf "\n"
 }
 
 
 function missingArgs() {
 	if [ $NUMARGS -lt 1 ]
 		then
-		echo -e "${RED}Error:${NC} Argument 'path' is required for option '$ARG'\n"
+		printf "${RED}Error:${NC} Argument 'path' is required for option '$ARG'\n"
 		helpArgs
 		exit -1
 	fi
@@ -106,7 +106,7 @@ function findCommit() {
 		then
 		pushRepo
 	else
-		echo "${RED}Error:${NC} No commited files for project '$WORKREPO'"
+		printf "${RED}Error:${NC} No commited files for project '$WORKREPO'\n"
 	fi
 
 }
@@ -136,7 +136,7 @@ function tracker() {
 	DATE=`date '+%Y-%m-%d_%H-%M-%S'`
 	LOGFILE=".tracker.log"
 	echo "$DATE" >> "$LOGFILE"
-	ipfs files write --create "/$WORKREPO/$LOGFILE" "$LOGFILE"
+	#ipfs files write --create "/$WORKREPO/$LOGFILE" "$LOGFILE"
 }
 
 
@@ -187,14 +187,15 @@ do
 			shift # Once for FILE ($2)
 			;;
 		# Commit an entire directory
-		-cd|--commitDir)
+		-c|--commitDir)
 			REPO="$2"
 			INITIAL=".tmp"
+			ipfs files rm -r /"$WORKREPO"
 			createRepo
 			shift # Once for REPO ($2)
 			;;
 		# Commit files
-		-cf|--commitFiles)
+		-e|--commitFiles)
 			echo "Commit multiple files is currently broken"
 			echo "Use 'commit *' to commit the entire directory"
 			exit 1
@@ -240,7 +241,7 @@ do
 			;;
 
 		# Any other argument
-		*) echo -e "${RED}Error:${NC} Invalid argument '$1'\n"
+		*) printf "${RED}Error:${NC} Invalid argument '$1'\n"
 			help
 			;;
 	esac

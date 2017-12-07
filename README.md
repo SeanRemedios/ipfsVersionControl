@@ -18,7 +18,7 @@ nvm install node
 ### Install Depdendcies
 To install ipfs run the following command:
 ```
-npm run ipfs
+npm install ipfs
 ```
 
 Created and made by: Sean Remedios

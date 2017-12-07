@@ -6,6 +6,7 @@ function initColours() {
 	#	NC='\033[0m' # No Color
 	#	echo -e "I ${RED}love${NC} different colours!"
 
+	# No colour (Resets colour)
 	NC='\033[0m'
 
 	BLACK='\033[0;30m'
@@ -29,7 +30,7 @@ function initColours() {
 
 initColours
 WORKREPO=${PWD##*/}
-echo -e "Current IPFS Repository: ${CYAN}$WORKREPO${NC}\n"
+printf "Current IPFS Repository: ${CYAN}$WORKREPO${NC}\n"
 
 
 function addFiles() {
@@ -38,11 +39,11 @@ function addFiles() {
 	if [[ "$DIRADD" == "$WORKREPO" || "$DIRADD" == "" ]]
 		then
 		REPO=$(basename $WORKREPO) # Get just the name of the repo
-		cd ".tmp" && mkdir "$REPO" && cd .. # Make sure the repo exists in .tmp
+		#cd ".tmp" && mkdir "$REPO" && cd .. # Make sure the repo exists in .tmp
 		# -ra : Recursively and all hidden files excluding those mentioned
 		# Copy everything from the working dir to .tmp
 		# Exclude any file from .vcignore
-		rsync -ra --exclude ".tmp" --exclude ".DS_Store" --exclude-from ".vcignore" . ".tmp/$REPO"
+		rsync -ra --exclude ".tmp" --exclude ".DS_Store" --exclude-from ".vcignore" . ".tmp/"
 	fi
 }
 
@@ -55,7 +56,7 @@ function getExclusions() {
     		then
     		continue
     	fi
-    	echo -e "\t${RED}$line${NC}"
+    	printf "\t${RED}$line${NC}\n"
 	done < ".vcignore"
 }
 
@@ -65,10 +66,8 @@ function getStatus() {
 	ALLFILES=$(find ".tmp/VersionControl" -mtime -14 ! -iname ".DS_Store" | xargs -n 1 basename)
 	for FILE in $ALLFILES
 	do
-		EXIST=$(find . -name "$FILE" -not -path "./.tmp/*")
-		#SUB=${EXIST:2}
-		#RESULT=$(ipfs files ls "/VersionControl/$SUB")
-		echo -e  "\t${GREEN}added: $FILE${NC}"
+		EXIST=$(find . -name "$FILE" -not -path "./.tmp/*")		
+		printf "\t${GREEN}added: $FILE${NC}\n"
 	done
 	printf "\n"
 	getExclusions
@@ -76,11 +75,11 @@ function getStatus() {
 
 
 function loadingBar() {
-	printf 'Loading: #####                     (33%%)\r'
+	printf "${RED}Loading:${NC} #####                     (33%%)\r"
 	sleep 0.5
-	printf 'Loading: #############             (66%%)\r'
+	printf "${RED}Loading:${NC}: #############             (66%%)\r"
 	sleep 0.5
-	printf 'Complete: #######################   (100%%)\r'
+	printf "${GREEN}Complete:${NC} #######################   (100%%)\r"
 	printf '\n'
 }
 
@@ -103,17 +102,43 @@ case "$1" in
 		mkdir ".tmp"
 		DIRADD="$2"
 		addFiles
+		printf "\n"
 		loadingBar
+		printf "Files added successfully!\n"
 		;;
 	status)
 		getStatus
 		;;
 	commit)
+		./ipfsStorage.sh -x "$WORKREPO" -c ".tmp"
 		;;
 	push)
+		./ipfsStorage.sh -x "$WORKREPO" -p "$WORKREPO"
 		;;
 	diff)
+		printf "\n${RED}Error:${NC} 'vc diff' is currently broken"
+		exit 1
+		: '
+		rsync looks at the differences between all the files and directories
+			-r : Recursive
+			-c : Skip based on checksum, not mod-time & size
+			-v : Increase verbosity
+			-n : Dry-run (Do not actually do anything)
+			-u : skip files that are newer in target
+			--delete : Checks for files that are only in source
+			--exclude-from : Does not check files listed in that file
+			Need "/" at the end of each directory
+		'
+		cd ..
+		# diff -rq "$WORKREPO" "$WORKREPO/.tmp"/* -X "$WORKREPO/.vcignore"
+																	# SOURCE 			#TARGET
+		rsync -rvunc --delete --exclude-from "$WORKREPO/.vcignore" "$WORKREPO"/ "$WORKREPO/.tmp"/*/
+		# echo $RESULT
+		cd "$WORKREPO"
 		;;	
+	new)
+		./ipfsStorage.sh -x "$WORKREPO" -r "$WORKREPO"
+		;;
 	test)
 		getExclusions
 		;;
