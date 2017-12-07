@@ -21,4 +21,9 @@ To install ipfs run the following command:
 npm install ipfs
 ```
 
+## Example Images
+
+### Adding files <br />
+![alt text](https://i.imgur.com/9u6YYsh.png)
+
 Created and made by: Sean Remedios
