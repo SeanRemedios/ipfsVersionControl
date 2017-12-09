@@ -40,7 +40,7 @@ function createRepo() {
 	'
 	RESULT=$(ipfs files mkdir "/$WORKREPO")
 	ipfs files cp "/ipfs/"`ipfs add -q -r $REPO | tail -n1` "/$WORKREPO/${INITIAL}"
-	tracker
+	#tracker "date '+%Y-%m-%d_%H-%M-%S'"
 }
 
 
@@ -58,7 +58,8 @@ function writeFile() {
 
 function pushRepo() {
 	ipfs files mv "/$WORKREPO/.tmp" "/$WORKREPO/$REPO"
-	tracker
+	DATE=$(date '+%Y-%m-%d_%H-%M-%S')
+	tracker " -- $DATE\n"
 }
 
 
@@ -75,21 +76,21 @@ function getSize() {
 }
 
 
-function help() {
-	printf "${LIGHTPURPLE}INFORMATION${NC}"
-	printf "  To add, commit or push any files, the working directory must be the repository name"
-	printf "\n${LIGHTPURPLE}USAGE${NC}"
-	printf "  ./ipfsStorage.sh [[-options] <path>]"
-	printf "\n${LIGHTPURPLE}ARGUMENTS${NC}"
-	printf "  -r, --repository <path> : Create a new repository"
-	printf "  -f, --writefile <path> : Write data to a file"
-	printf "  -remove, --remove <path> : Removes a file or directory"
+function helpArgs() {
+	printf "${LIGHTPURPLE}INFORMATION${NC}\n"
+	printf "  To add, commit or push any files, the working directory must be the repository name\n"
+	printf "\n${LIGHTPURPLE}USAGE${NC}\n"
+	printf "  ./ipfsStorage.sh [[-options] <path>]\n"
+	printf "\n${LIGHTPURPLE}ARGUMENTS${NC}\n"
+	printf "  -r, --repository <path> : Create a new repository\n"
+	printf "  -f, --writefile <path> : Write data to a file\n"
+	printf "  -remove, --remove <path> : Removes a file or directory\n"
 	printf "\n"
 }
 
 
 function missingArgs() {
-	if [ $NUMARGS -lt 1 ]
+	if [[ $NUMARGS -lt "$1" ]]
 		then
 		printf "${RED}Error:${NC} Argument 'path' is required for option '$ARG'\n"
 		helpArgs
@@ -105,6 +106,9 @@ function findCommit() {
 	if echo "$RESULT" | grep -q "$FIND"
 		then
 		pushRepo
+		getHash
+		printf "${GREEN}Success:${NC} Files pushed\n"
+		printf "To ${PURPLE}$HASH${NC} - master -> master"
 	else
 		printf "${RED}Error:${NC} No commited files for project '$WORKREPO'\n"
 	fi
@@ -133,9 +137,9 @@ function commitFiles() {
 
 
 function tracker() {
-	DATE=`date '+%Y-%m-%d_%H-%M-%S'`
+	DATA="$1"
 	LOGFILE=".tracker.log"
-	echo "$DATE" >> "$LOGFILE"
+	printf "$DATA" >> "$LOGFILE"
 	#ipfs files write --create "/$WORKREPO/$LOGFILE" "$LOGFILE"
 }
 
@@ -144,6 +148,69 @@ function locateFiles() {
 	# See if the file path exists
 	ipfs files ls "/$WORKREPO/$FILE"
 
+}
+
+
+function getHash() {
+	RESULT=$(ipfs files ls -l "/$WORKREPO")
+	HASH=$(echo $RESULT | cut -d " " -f 2)
+}
+
+
+function pullFiles() {
+	PATHTOPULL="$1"
+	getHash
+	ipfs get -o="$PATHTOPULL" "/ipfs/$HASH"
+}
+
+
+function zipFiles() {
+	zip -r "$WORKREPO".zip "$HOME/Downloads/$WORKREPO" 2>/dev/null >/dev/null
+	cp "$WORKREPO.zip" "$HOME/Downloads"
+	rm -f "./$WORKREPO.zip"
+	rm -rf "$HOME/Downloads/$WORKREPO"
+	loadingBar
+}
+
+
+function getDiff() {
+	printf "\n"
+	pullFiles "../$WORKREPO-Diff" 2>/dev/null >/dev/null
+
+	cd ..
+	#diff -qNr "$WORKREPO-Diff/" "$WORKREPO/.tmp/"
+	#rsync -avunc $WORKREPO-Diff/*/ $WORKREPO/.tmp/*/
+	#rsync -rvunc --delete --exclude-from "$WORKREPO/.vcignore" "$WORKREPO-Diff"/*/ "$WORKREPO/.tmp"/*/
+	cd "$WORKREPO"
+
+	: '
+	rsync looks at the differences between all the files and directories
+		-r : Recursive
+		-c : Skip based on checksum, not mod-time & size
+		-v : Increase verbosity
+		-n : Dry-run (Do not actually do anything)
+		-u : skip files that are newer in target
+		--delete : Checks for files that are only in source
+		--exclude-from : Does not check files listed in that file
+		Need "/" at the end of each directory
+	'
+	# cd ..
+	# diff -rq "$WORKREPO" "$WORKREPO/.tmp"/* -X "$WORKREPO/.vcignore"
+	# 															# SOURCE 			#TARGET
+	# rsync -rvunc --delete --exclude-from "$WORKREPO/.vcignore" "$WORKREPO"/ "$WORKREPO/.tmp"/*/
+	# echo $RESULT
+	# cd "$WORKREPO"
+}
+
+
+function loadingBar() {
+	printf "\n"
+	printf "${RED}Zipping:${NC} #####                     (33%%)\r"
+	sleep 0.75
+	printf "${RED}Zipping:${NC}: #############             (66%%)\r"
+	sleep 0.75
+	printf "${GREEN}Complete:${NC} #######################   (100%%)\r"
+	printf '\n'
 }
 
 
@@ -168,29 +235,29 @@ do
 			;;
 		# New Repository
 		-r|--repository)
-			missingArgs
-			REPO="$2"
-			INITIAL="$REPO"
-			createRepo
+			ipfs files mkdir "/$WORKREPO"
 			shift # Once for REPO ($2)
 			;;
 		# Write File
 		-f|--writefile) 
-			missingArgs
+			missingArgs 1
 			FILEPATH="$2"
 			writeFile
 			shift # Once for REPO ($2)
 			;;
 		# Locate File
 		-l|--locate)
-			FILE=$2
+			missingArgs 1
+			FILE="$2"
 			shift # Once for FILE ($2)
 			;;
 		# Commit an entire directory
 		-c|--commitDir)
+			missingArgs 1
 			REPO="$2"
 			INITIAL=".tmp"
-			ipfs files rm -r /"$WORKREPO"
+			# Remove previous
+			ipfs files rm -r /"$WORKREPO" 2>/dev/null >/dev/null
 			createRepo
 			shift # Once for REPO ($2)
 			;;
@@ -199,23 +266,35 @@ do
 			echo "Commit multiple files is currently broken"
 			echo "Use 'commit *' to commit the entire directory"
 			exit 1
+			missingArgs 1
 			shift # Once for "-cf" or "--commitFiles"
 			commitFiles
 			;;
 		# Push
 		-p|--push)
+			missingArgs 1
 			REPO="$2"
 			findCommit
 			shift # Once for REPO ($2)
 			;;
-		# 
-		-v) 
-			echo "random length" > "test/test8.txt"
-			echo 'v'
+		# Pull non-zip
+		-u|--pull) 
+			printf "\n"
+			pullFiles "$HOME/Downloads/$WORKREPO"
+			;;
+		# Pull zip
+		-U|--pull-zip)
+			printf "\n"
+			pullFiles "$HOME/Downloads/$WORKREPO"
+			zipFiles
+			;;
+		# Difference between two repos
+		-d|--difference)
+			getDiff
 			;;
 		# Remove file from repository
 		-remove|--remove)
-			missingArgs
+			missingArgs 1
 
 			# Broken
 			# echo "Error: Remove argument is broken"
@@ -234,15 +313,20 @@ do
 			fi
 			shift # Once for PATH ($2)
 			;;
-
-		#
-		-help|--help)
-			help
+		# Message for commit
+		-m|--message)
+			MESSAGE="$2"
+			tracker "$MESSAGE"
+			shift # Once for "$2"
+			;;
+		# Help
+		-h|-help|--help|help)
+			helpArgs
 			;;
 
 		# Any other argument
 		*) printf "${RED}Error:${NC} Invalid argument '$1'\n"
-			help
+			helpArgs
 			;;
 	esac
 	shift

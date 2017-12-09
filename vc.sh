@@ -30,7 +30,7 @@ function initColours() {
 
 initColours
 WORKREPO=${PWD##*/}
-printf "Current IPFS Repository: ${CYAN}$WORKREPO${NC}\n"
+printf "Current IPFS Repository: ${CYAN}$WORKREPO${NC}\n\n"
 
 
 function addFiles() {
@@ -43,7 +43,7 @@ function addFiles() {
 		# -ra : Recursively and all hidden files excluding those mentioned
 		# Copy everything from the working dir to .tmp
 		# Exclude any file from .vcignore
-		rsync -ra --exclude ".tmp" --exclude ".DS_Store" --exclude-from ".vcignore" . ".tmp/"
+		rsync -ra --exclude ".tmp" --exclude ".DS_Store" --exclude-from ".vcignore" ./ ".tmp/"
 	fi
 }
 
@@ -63,21 +63,37 @@ function getExclusions() {
 
 function getStatus() {
 	echo -e "Added files and directories:"
-	ALLFILES=$(find ".tmp/VersionControl" -mtime -14 ! -iname ".DS_Store" | xargs -n 1 basename)
-	for FILE in $ALLFILES
-	do
-		EXIST=$(find . -name "$FILE" -not -path "./.tmp/*")		
-		printf "\t${GREEN}added: $FILE${NC}\n"
-	done
+	ALLFILES=$(find ".tmp/" 2>/dev/null -mtime -14 ! -iname ".DS_Store" | xargs -n 1 basename)
+	if [[ $ALLFILES == "" ]]
+		then
+		printf "\tBranch is up-to-date with 'master' or staged for commit\n"
+	else
+		for FILE in $ALLFILES
+		do
+			EXIST=$(find . -name "$FILE" -not -path "./.tmp/*")
+			printf "\t${GREEN}added: $FILE${NC}\n"
+		done
+	fi
 	printf "\n"
 	getExclusions
+}
+
+
+function missingArgs() {
+	NEEDED="$2"
+	if [[ $NUMARGS -lt "$1" ]]
+		then
+		printf "${RED}Error:${NC} Argument '$NEEDED' is required for option '$ARG'\n"
+		helpArgs
+		exit -1
+	fi
 }
 
 
 function loadingBar() {
 	printf "${RED}Loading:${NC} #####                     (33%%)\r"
 	sleep 0.5
-	printf "${RED}Loading:${NC}: #############             (66%%)\r"
+	printf "${RED}Loading:${NC} #############             (66%%)\r"
 	sleep 0.5
 	printf "${GREEN}Complete:${NC} #######################   (100%%)\r"
 	printf '\n'
@@ -96,21 +112,58 @@ function loadingDots() {
 }
 
 
+function helpArgs() {
+	printf "\n"
+	printf "${LIGHTPURPLE}INFORMATION${NC}\n"
+	printf "  To add, commit or push any files, the working directory must be the repository name\n"
+	printf "\n${LIGHTPURPLE}USAGE${NC}\n"
+	printf "  vc [-options]\n"
+	printf "\n${LIGHTPURPLE}OPTIONS${NC}\n"
+	printf "  add : Add files/directories to be committed\n"
+	printf "  status : See what files/directories are added and are excluded\n"
+	printf "  commit : Commit files to be pushed to the repository\n"
+	printf "  push : Push files to the IPFS repository\n"
+	printf "  diff : See the difference between added files and repo files\n"
+	printf "  pull [zip] : Pull a copy or a zipped of the repo locally\n"
+	printf "  new : Create a new repository\n"
+	printf "\n"
+}
+
+if [ $# -eq 0 ]
+	then
+	echo "Invalid number of arguments"
+	helpArgs
+else
+	NUMARGS=$#
+fi
+
+ARG=$1
 case "$1" in
 	add)
-		rm -rf ".tmp"
-		mkdir ".tmp"
+		mkdir ".tmp" 2>/dev/null >/dev/null
 		DIRADD="$2"
 		addFiles
-		printf "\n"
 		loadingBar
-		printf "Files added successfully!\n"
 		;;
 	status)
 		getStatus
 		;;
 	commit)
-		./ipfsStorage.sh -x "$WORKREPO" -c ".tmp"
+		missingArgs 3 "message"
+		OPTION="$2"
+		MESSAGE="$3"
+		DIR=".tmp"
+		if [[ ! -d "$DIR" ]]
+			then
+			printf "${RED}Error:${NC} No files added"
+		else
+			./ipfsStorage.sh -x "$WORKREPO" -c ".tmp" -m "$MESSAGE" &
+			loadingBar
+			printf "${GREEN}Success:${NC} Files committed"
+			rm -rf "$DIR" 2>/dev/null >/dev/null
+		fi
+		shift # Once for "OPTION" ($2)
+		shift # Once for "MESSAGE" ($3)
 		;;
 	push)
 		./ipfsStorage.sh -x "$WORKREPO" -p "$WORKREPO"
@@ -118,29 +171,27 @@ case "$1" in
 	diff)
 		printf "\n${RED}Error:${NC} 'vc diff' is currently broken"
 		exit 1
-		: '
-		rsync looks at the differences between all the files and directories
-			-r : Recursive
-			-c : Skip based on checksum, not mod-time & size
-			-v : Increase verbosity
-			-n : Dry-run (Do not actually do anything)
-			-u : skip files that are newer in target
-			--delete : Checks for files that are only in source
-			--exclude-from : Does not check files listed in that file
-			Need "/" at the end of each directory
-		'
-		cd ..
-		# diff -rq "$WORKREPO" "$WORKREPO/.tmp"/* -X "$WORKREPO/.vcignore"
-																	# SOURCE 			#TARGET
-		rsync -rvunc --delete --exclude-from "$WORKREPO/.vcignore" "$WORKREPO"/ "$WORKREPO/.tmp"/*/
-		# echo $RESULT
-		cd "$WORKREPO"
+		#./ipfsStorage.sh -x "$WORKREPO" -d
 		;;	
 	new)
-		./ipfsStorage.sh -x "$WORKREPO" -r "$WORKREPO"
+		./ipfsStorage.sh -x "$WORKREPO" -r
+		printf "\nCreating new repository: ${LIGHTBLUE}$WORKREPO${NC}...\n"
+		loadingBar
 		;;
-	test)
-		getExclusions
+	pull)
+		ZIP="$2"
+		if [[ $ZIP == "zip" ]]
+			then
+			# Zipped
+			./ipfsStorage.sh -x "$WORKREPO" -U
+		else
+			# Non-zipped
+			./ipfsStorage.sh -x "$WORKREPO" -u
+		fi
+		shift # Once for zip ($2)
+		;;
+	-help|--help|help)
+		helpArgs
 		;;
 	*)
 		;;
